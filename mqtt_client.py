@@ -155,7 +155,7 @@ def prompt_gpt4_with_video_frames(prompt, base64_frames, low_detail=True):
         },
     ]
     payload = {
-        "model": "gpt-4-vision-preview",
+        "model": "gpt-4-1106-vision-preview",
         "messages": PROMPT_MESSAGES,
         "max_tokens": 200,
     }
@@ -285,6 +285,7 @@ def download_video_clip_and_extract_frames(event_id, gap_secs):
 
 
 def process_message(payload):
+    event_id = None
     try:
         event_id = payload["after"]["id"]
         video_base64_frames = download_video_clip_and_extract_frames(
@@ -300,8 +301,15 @@ def process_message(payload):
         )
         response = prompt_gpt4_with_video_frames(prompt, video_base64_frames)
         logging.info(f"GPT response {response.json()}")
+
         json_str = response.json()["choices"][0]["message"]["content"]
-        result = json.loads(json_str)
+        logging.info(f"json_str content: {json_str}")
+
+        try:
+            result = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logging.error(f"Error decoding JSON: {e}")
+            return
 
         # Set the summary to the 'after' field
         payload["after"]["summary"] = "| GPT: " + (
@@ -312,7 +320,6 @@ def process_message(payload):
         updated_payload_json = json.dumps(payload)
 
         # Publish the updated payload back to the MQTT topic
-        # Create a new MQTT client
         client = mqtt.Client()
         if MQTT_USERNAME is not None:
             client.username_pw_set(MQTT_USERNAME, password=MQTT_PASSWORD)
@@ -320,12 +327,14 @@ def process_message(payload):
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.publish(MQTT_SUMMARY_TOPIC, updated_payload_json)
         logging.info("Published updated payload with summary back to MQTT topic.")
-    except Exception:
-        logging.exception(f"Error processing video for event {event_id}")
+
+    except Exception as ex:
+        logging.exception(f"Error processing video for event {event_id}: {ex}")
     finally:
         # Cleanup: remove the task from the ongoing_tasks dict
         if event_id in ongoing_tasks:
             del ongoing_tasks[event_id]
+
 
 
 # Define what to do when the client connects to the broker
