@@ -155,7 +155,7 @@ def prompt_gpt4_with_video_frames(prompt, base64_frames, low_detail=True):
         },
     ]
     payload = {
-        "model": "gpt-4-1106-vision-preview",
+        "model": "gpt-4-vision-preview",
         "messages": PROMPT_MESSAGES,
         "max_tokens": 200,
     }
